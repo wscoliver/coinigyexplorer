@@ -1,5 +1,9 @@
 'use strict';
 
+var _regenerator = require('babel-runtime/regenerator');
+
+var _regenerator2 = _interopRequireDefault(_regenerator);
+
 var _minimist = require('minimist');
 
 var _minimist2 = _interopRequireDefault(_minimist);
@@ -24,14 +28,32 @@ var _socketclusterClient = require('socketcluster-client');
 
 var _socketclusterClient2 = _interopRequireDefault(_socketclusterClient);
 
+var _coinigy = require('./connectors/coinigy');
+
+var _coinigy2 = _interopRequireDefault(_coinigy);
+
+var _rx = require('rx');
+
+var _rx2 = _interopRequireDefault(_rx);
+
+var _mongodb = require('mongodb');
+
+var _mongodb2 = _interopRequireDefault(_mongodb);
+
+var _BITS = require('./feed/BITS');
+
+var _BITS2 = _interopRequireDefault(_BITS);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 // bluebird
-/*
-  Main App
-*/
+_bluebird2.default.promisifyAll(_nedb2.default.prototype); /*
+                                                             Main App
+                                                           */
 
-_bluebird2.default.promisifyAll(_nedb2.default.prototype);
+_bluebird2.default.promisifyAll(_mongodb2.default.MongoClient);
+// Internal Libraries
+
 // Process Arguments
 var rargs = process.argv.slice(2);
 var argv = (0, _minimist2.default)(rargs);
@@ -42,42 +64,35 @@ var penv = process.env;
 var apiCredentials = {
   'apiKey': penv['X_API_KEY'],
   'apiSecret': penv['X_API_SECRET']
-};
+  // Grab all events and pass to Rx Subject.
+};(0, _co2.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee() {
+  var MongoClient, url, db, subj;
+  return _regenerator2.default.wrap(function _callee$(_context) {
+    while (1) {
+      switch (_context.prev = _context.next) {
+        case 0:
+          MongoClient = _mongodb2.default.MongoClient;
+          url = 'mongodb://localhost:27017/coinigy';
+          _context.next = 4;
+          return MongoClient.connectAsync(url);
 
-var opts = {
-  hostname: 'sc-02.coinigy.com',
-  port: '443',
-  secure: 'true'
-};
-var SCsocket = _socketclusterClient2.default.connect(opts);
+        case 4:
+          db = _context.sent;
+          subj = new _rx2.default.Subject();
 
-SCsocket.on('connect', function (status) {
-  console.log('SCsocket status:');
-  console.log(status);
-  SCsocket.emit('auth', apiCredentials, function (err, token) {
-    if (!err && token) {
-      console.log('Auth successful with token');
-      console.log(token);
+          _coinigy2.default.run(apiCredentials, subj);
+
+          subj.subscribe(function (incoming) {
+            if (incoming['topic'] == 'ORDER-BITS--USD--BTC') {
+              _BITS2.default['processOrder'](incoming, db);
+            }
+          });
+
+        case 8:
+        case 'end':
+          return _context.stop();
+      }
     }
-    // Subscribe
-    //const bitfinexTrade = 'TRADE-BITS--USD--BTC'
-    var bitfinexOrder = 'TRADE-BITS--USD--BTC';
-    var gdaxOrder = 'TRADE-GDAX--BTC--USD';
-
-    var bitfinexOrderChan = SCsocket.subscribe(bitfinexOrder);
-    var gdaxOrderChan = SCsocket.subscribe(gdaxOrder);
-
-    bitfinexOrderChan.watch(function (bitfinexData) {
-      console.log('Bitfinex Order');
-      console.log(bitfinexData.length);
-      console.log(bitfinexData);
-    });
-    gdaxOrderChan.watch(function (gdaxData) {
-      console.log('Gdax Order');
-      console.log(gdaxData.length);
-      console.log(gdaxData);
-    });
-    //
-  });
-});
+  }, _callee, this);
+}));
 //# sourceMappingURL=app.js.map
